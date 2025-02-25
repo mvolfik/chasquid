@@ -109,7 +109,7 @@ func TestDSNOnTimeout(t *testing.T) {
 		t.Fatal("missing DSN")
 	}
 
-	if req.From != "<>" || req.To != "from@loco" ||
+	if req.From != "postmaster-dsn@loco" || req.To != "from@loco" ||
 		!strings.Contains(string(req.Data), "X-Failed-Recipients: to@to,") {
 		t.Errorf("wrong DSN: %q", string(req.Data))
 	}

@@ -335,7 +335,7 @@ func (item *Item) SendLoop(q *Queue) {
 	}
 
 	// Completed to all recipients (some may not have succeeded).
-	if item.countRcpt(Recipient_FAILED, Recipient_PENDING) > 0 && item.From != "<>" {
+	if item.countRcpt(Recipient_FAILED, Recipient_PENDING) > 0 && !strings.HasPrefix(item.From, "postmaster-dsn@") {
 		sendDSN(tr, q, item)
 	}
 
@@ -458,7 +458,7 @@ func sendDSN(tr *trace.Trace, q *Queue, item *Item) {
 
 	// TODO: DKIM signing.
 
-	id, err := q.Put(tr, "<>", []string{item.From}, msg)
+	id, err := q.Put(tr, "postmaster-dsn@"+domain, []string{item.From}, msg)
 	if err != nil {
 		tr.Errorf("failed to queue DSN: %v", err)
 		return
