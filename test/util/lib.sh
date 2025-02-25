@@ -108,6 +108,10 @@ function dovecot-auth-cli() {
 }
 
 function run_msmtp() {
+	if ! command -v msmtp > /dev/null; then
+		return 1
+	fi
+
 	# msmtp will check that the rc file is only user readable.
 	chmod 600 msmtprc
 

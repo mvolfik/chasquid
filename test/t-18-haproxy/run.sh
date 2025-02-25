@@ -12,6 +12,10 @@ if ! haproxy -v > /dev/null; then
 	skip "haproxy binary not found"
 fi
 
+if ! run_msmtp --version > /dev/null; then
+	skip "msmtp not installed"
+fi
+
 # Set a 2m timeout: if there are issues with haproxy, the wait tends to hang
 # indefinitely, so an explicit timeout helps with test automation.
 timeout 2m

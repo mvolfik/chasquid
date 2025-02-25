@@ -6,6 +6,10 @@ set -e
 init
 check_hostaliases
 
+if ! run_msmtp --version > /dev/null; then
+	skip "msmtp not installed"
+fi
+
 mkdir -p .logs
 
 if ! chasquid --version > /dev/null; then
