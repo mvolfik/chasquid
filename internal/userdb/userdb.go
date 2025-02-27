@@ -119,6 +119,9 @@ func (db *DB) Authenticate(name, plainPassword string) *UserMeta {
 	}
 
 	if passwd.PasswordMatches(plainPassword) {
+		if passwd.Meta == nil {
+			return &UserMeta{}
+		}
 		return passwd.Meta
 	}
 	return nil
@@ -182,6 +185,9 @@ func (db *DB) RestrictUser(name string, restriction SendRestriction) error {
 	if !present {
 		db.mu.Unlock()
 		return errors.New("user not found")
+	}
+	if u.Meta == nil {
+		u.Meta = &UserMeta{}
 	}
 	u.Meta.SendRestriction = restriction
 	db.mu.Unlock()
