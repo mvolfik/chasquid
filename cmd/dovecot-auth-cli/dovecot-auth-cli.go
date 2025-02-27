@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"blitiri.com.ar/go/chasquid/internal/dovecot"
+	"blitiri.com.ar/go/chasquid/internal/userdb"
 )
 
 const help = `
@@ -41,7 +42,9 @@ func main() {
 	case "exists":
 		ok, err = a.Exists(flag.Arg(2))
 	case "auth":
-		ok, err = a.Authenticate(flag.Arg(2), flag.Arg(3))
+		var userMeta *userdb.UserMeta
+		userMeta, err = a.Authenticate(flag.Arg(2), flag.Arg(3))
+		ok = userMeta != nil
 	default:
 		err = fmt.Errorf("unknown subcommand %q", flag.Arg(1))
 	}

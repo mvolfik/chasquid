@@ -31,6 +31,7 @@ import (
 	"blitiri.com.ar/go/chasquid/internal/set"
 	"blitiri.com.ar/go/chasquid/internal/tlsconst"
 	"blitiri.com.ar/go/chasquid/internal/trace"
+	"blitiri.com.ar/go/chasquid/internal/userdb"
 	"blitiri.com.ar/go/spf"
 )
 
@@ -167,8 +168,9 @@ type Conn struct {
 	completedAuth bool
 
 	// Authenticated user and domain, empty if !completedAuth.
-	authUser   string
-	authDomain string
+	authUser     string
+	authDomain   string
+	authUserMeta *userdb.UserMeta
 
 	// When we should close this connection, no matter what.
 	deadline time.Time
@@ -463,9 +465,12 @@ func (c *Conn) MAIL(params string) (code int, msg string) {
 		}
 		addr = e.Address
 
-		if !strings.Contains(addr, "@") {
-			return 501, "5.1.8 Sender address must contain a domain"
+		sp := strings.Split(addr, "@")
+		if len(sp) != 2 {
+			return 501, "5.1.8 Malformed sender address"
 		}
+		addrUser := sp[0]
+		addrDomain := sp[1]
 
 		// https://tools.ietf.org/html/rfc5321#section-4.5.3.1.3
 		if len(addr) > 256 {
@@ -495,6 +500,25 @@ func (c *Conn) MAIL(params string) (code int, msg string) {
 			maillog.Rejected(c.remoteAddr, addr, nil,
 				fmt.Sprintf("malformed address: %v", err))
 			return 501, "5.1.8 Malformed sender domain (IDNA conversion failed)"
+		}
+
+		if c.completedAuth {
+			switch c.authUserMeta.SendRestriction {
+			case userdb.SendRestriction_Unspecified:
+				// do nothing
+			case userdb.SendRestriction_Domain:
+				if addrDomain != c.authDomain {
+					maillog.Rejected(c.remoteAddr, addr, nil,
+						"sender domain does not match authenticated domain")
+					return 550, "5.7.0 You can only send from your own domain"
+				}
+			case userdb.SendRestriction_Self:
+				if addrDomain != c.authDomain || addrUser != c.authUser {
+					maillog.Rejected(c.remoteAddr, addr, nil,
+						"sender does not match authenticated user")
+					return 550, "5.7.0 You can only send from your own address"
+				}
+			}
 		}
 	}
 
@@ -1019,7 +1043,8 @@ func (c *Conn) dkimSign() error {
 	// We only sign if the user authenticated. However, the authenticated user
 	// and the MAIL FROM address may be different; even the domain may be
 	// different.
-	// We explicitly let this happen and trust authenticated users.
+	// We explicitly let this happen and trust authenticated users (unless they have
+	// a SendRestriction set).
 	// So for DKIM signing purposes, we use the MAIL FROM domain: this
 	// prevents leaking the authenticated user's domain, and is more in line
 	// with expectations around signatures.
@@ -1188,15 +1213,16 @@ func (c *Conn) AUTH(params string) (code int, msg string) {
 	}
 
 	// https://tools.ietf.org/html/rfc4954#section-6
-	authOk, err := c.authr.Authenticate(c.tr, user, domain, passwd)
+	userMeta, err := c.authr.Authenticate(c.tr, user, domain, passwd)
 	if err != nil {
 		c.tr.Errorf("error authenticating %q@%q: %v", user, domain, err)
 		maillog.Auth(c.remoteAddr, user+"@"+domain, false)
 		return 454, "4.7.0 Temporary authentication failure"
 	}
-	if authOk {
+	if userMeta != nil {
 		c.authUser = user
 		c.authDomain = domain
+		c.authUserMeta = userMeta
 		c.completedAuth = true
 		maillog.Auth(c.remoteAddr, user+"@"+domain, true)
 		return 235, "2.7.0 Authentication successful"

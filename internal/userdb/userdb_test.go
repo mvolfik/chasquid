@@ -163,7 +163,8 @@ func TestWrite(t *testing.T) {
 		{" ", "  ", false},
 	}
 	for _, c := range combinations {
-		if db.Authenticate(c.user, c.passwd) != c.expected {
+		ok := db.Authenticate(c.user, c.passwd) != nil
+		if ok != c.expected {
 			t.Errorf("auth(%q, %q) != %v", c.user, c.passwd, c.expected)
 		}
 	}
@@ -237,10 +238,10 @@ func TestPlainScheme(t *testing.T) {
 	}
 
 	db = mustLoad(t, fname)
-	if !db.Authenticate("user", "pass word") {
+	if db.Authenticate("user", "pass word") == nil {
 		t.Errorf("failed plain authentication")
 	}
-	if db.Authenticate("user", "wrong") {
+	if db.Authenticate("user", "wrong") != nil {
 		t.Errorf("plain authentication worked but it shouldn't")
 	}
 }
@@ -258,7 +259,7 @@ func TestDeniedScheme(t *testing.T) {
 	}
 
 	db = mustLoad(t, fname)
-	if db.Authenticate("user", "anything") {
+	if db.Authenticate("user", "anything") != nil {
 		t.Errorf("denied authentication worked but it shouldn't")
 	}
 }

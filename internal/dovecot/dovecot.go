@@ -20,6 +20,8 @@ import (
 	"sync"
 	"time"
 	"unicode"
+
+	"blitiri.com.ar/go/chasquid/internal/userdb"
 )
 
 // DefaultTimeout to use. We expect Dovecot to be quite fast, but don't want
@@ -141,26 +143,26 @@ func (a *Auth) Exists(user string) (bool, error) {
 
 // Authenticate returns true if the password is valid for the user, false
 // otherwise.
-func (a *Auth) Authenticate(user, passwd string) (bool, error) {
+func (a *Auth) Authenticate(user, passwd string) (*userdb.UserMeta, error) {
 	if !isUsernameSafe(user) {
-		return false, errUsernameNotSafe
+		return nil, errUsernameNotSafe
 	}
 
 	_, clientAddr, err := a.getAddrs()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	conn, err := a.dial("unix", clientAddr)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer conn.Close()
 
 	// Send our version, and then our PID.
 	err = write(conn, fmt.Sprintf("VERSION\t1\t1\nCPID\t%d\n", os.Getpid()))
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	// Read the server-side handshake. We don't care about the contents
@@ -168,7 +170,7 @@ func (a *Auth) Authenticate(user, passwd string) (bool, error) {
 	for {
 		resp, err := conn.ReadLine()
 		if err != nil {
-			return false, fmt.Errorf("error receiving handshake: %v", err)
+			return nil, fmt.Errorf("error receiving handshake: %v", err)
 		}
 		if resp == "DONE" {
 			break
@@ -186,19 +188,19 @@ func (a *Auth) Authenticate(user, passwd string) (bool, error) {
 	err = write(conn, fmt.Sprintf(
 		"AUTH\t1\tPLAIN\tservice=smtp\tsecured\tno-penalty\tnologin\tresp=%s\n", resp))
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	// Get the response, and we're done.
 	resp, err = conn.ReadLine()
 	if err != nil {
-		return false, fmt.Errorf("error receiving response: %v", err)
+		return nil, fmt.Errorf("error receiving response: %v", err)
 	} else if strings.HasPrefix(resp, "OK\t1") {
-		return true, nil
+		return &userdb.UserMeta{}, nil
 	} else if strings.HasPrefix(resp, "FAIL\t1") {
-		return false, nil
+		return nil, nil
 	}
-	return false, fmt.Errorf("invalid response: %q", resp)
+	return nil, fmt.Errorf("invalid response: %q", resp)
 }
 
 // Reload the authenticator. It's a no-op for dovecot, but it is needed to

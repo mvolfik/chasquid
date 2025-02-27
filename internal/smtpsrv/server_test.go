@@ -597,8 +597,8 @@ func waitForServer(addr string) error {
 
 type brokenAuthBE struct{}
 
-func (b brokenAuthBE) Authenticate(user, password string) (bool, error) {
-	return false, fmt.Errorf("failed to auth")
+func (b brokenAuthBE) Authenticate(user, password string) (*userdb.UserMeta, error) {
+	return nil, fmt.Errorf("failed to auth")
 }
 
 func (b brokenAuthBE) Exists(user string) (bool, error) {

@@ -18,12 +18,12 @@ func TestUsernameNotSafe(t *testing.T) {
 	cases := []string{
 		"a b", " ab", "ab ", "a\tb", "a\t", " ", "\t", "\t "}
 	for _, c := range cases {
-		ok, err := a.Authenticate(c, "passwd")
-		if ok || err != errUsernameNotSafe {
-			t.Errorf("Authenticate(%q, _): got %v, %v", c, ok, err)
+		userMeta, err := a.Authenticate(c, "passwd")
+		if userMeta != nil || err != errUsernameNotSafe {
+			t.Errorf("Authenticate(%q, _): got %v, %v", c, userMeta, err)
 		}
 
-		ok, err = a.Exists(c)
+		ok, err := a.Exists(c)
 		if ok || err != errUsernameNotSafe {
 			t.Errorf("Exists(%q): got %v, %v", c, ok, err)
 		}
@@ -53,9 +53,9 @@ func TestAutodetect(t *testing.T) {
 	if ok != false || err != errNoUserdbSocket {
 		t.Errorf("Expected {false, no userdb socket}, got {%v, %v}", ok, err)
 	}
-	ok, err = a.Authenticate("user", "password")
-	if ok != false || err != errNoUserdbSocket {
-		t.Errorf("Expected {false, no userdb socket}, got {%v, %v}", ok, err)
+	userMeta, err := a.Authenticate("user", "password")
+	if userMeta != nil || err != errNoUserdbSocket {
+		t.Errorf("Expected {nil, no userdb socket}, got {%v, %v}", ok, err)
 	}
 
 	// Create a temporary directory, and two sockets on it.

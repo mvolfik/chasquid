@@ -109,16 +109,19 @@ func (db *DB) Write() error {
 
 // Authenticate returns true if the password is valid for the user, false
 // otherwise.
-func (db *DB) Authenticate(name, plainPassword string) bool {
+func (db *DB) Authenticate(name, plainPassword string) *UserMeta {
 	db.mu.RLock()
 	passwd, ok := db.db.Users[name]
 	db.mu.RUnlock()
 
 	if !ok {
-		return false
+		return nil
 	}
 
-	return passwd.PasswordMatches(plainPassword)
+	if passwd.PasswordMatches(plainPassword) {
+		return passwd.Meta
+	}
+	return nil
 }
 
 // PasswordMatches returns true if the given password is a match.
@@ -168,6 +171,19 @@ func (db *DB) AddUser(name, plainPassword string) error {
 	db.db.Users[name] = &Password{
 		Scheme: &Password_Scrypt{s},
 	}
+	db.mu.Unlock()
+
+	return nil
+}
+
+func (db *DB) RestrictUser(name string, restriction SendRestriction) error {
+	db.mu.Lock()
+	u, present := db.db.Users[name]
+	if !present {
+		db.mu.Unlock()
+		return errors.New("user not found")
+	}
+	u.Meta.SendRestriction = restriction
 	db.mu.Unlock()
 
 	return nil

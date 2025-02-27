@@ -14,6 +14,17 @@ message Password {
 		Plain plain = 3;
 		Denied denied = 4;
 	}
+	UserMeta meta = 5;
+}
+
+message UserMeta {
+	SendRestriction sendRestriction = 1;
+}
+
+enum SendRestriction {
+	Unspecified = 0;
+	Domain = 1;
+	Self = 2;
 }
 
 message Scrypt {

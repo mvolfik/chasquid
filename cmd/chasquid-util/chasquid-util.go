@@ -80,15 +80,16 @@ func main() {
 	}
 
 	commands := map[string]func(){
-		"user-add":          userAdd,
-		"user-remove":       userRemove,
-		"authenticate":      authenticate,
-		"check-userdb":      checkUserDB,
-		"aliases-resolve":   aliasesResolve,
-		"print-config":      printConfig,
-		"domaininfo-remove": domaininfoRemove,
-		"dkim-keygen":       dkimKeygen,
-		"dkim-dns":          dkimDNS,
+		"user-add":                  userAdd,
+		"user-remove":               userRemove,
+		"authenticate":              authenticate,
+		"check-userdb":              checkUserDB,
+		"aliases-resolve":           aliasesResolve,
+		"print-config":              printConfig,
+		"domaininfo-remove":         domaininfoRemove,
+		"dkim-keygen":               dkimKeygen,
+		"dkim-dns":                  dkimDNS,
+		"set-user-send-restriction": setUserSendRestriction,
 
 		// These exist for testing purposes and may be removed in the future.
 		// Do not rely on them.
@@ -195,13 +196,42 @@ func userAdd() {
 	fmt.Println("Added user")
 }
 
+// chasquid-util set-user-send-restriction <user@domain> --any|--domain|--self
+func setUserSendRestriction() {
+	user, _, db := userDBFromArgs(false)
+
+	restriction := userdb.SendRestriction_Unspecified
+	switch args["$3"] {
+	case "--any":
+		restriction = userdb.SendRestriction_Unspecified
+	case "--domain":
+		restriction = userdb.SendRestriction_Domain
+	case "--self":
+		restriction = userdb.SendRestriction_Self
+	default:
+		Fatalf("Invalid restriction")
+	}
+
+	err := db.RestrictUser(user, restriction)
+	if err != nil {
+		Fatalf("Error setting restriction: %v", err)
+	}
+
+	err = db.Write()
+	if err != nil {
+		Fatalf("Error writing database: %v", err)
+	}
+
+	fmt.Println("Set user send restriction")
+}
+
 // chasquid-util authenticate <user@domain> [--password=<password>]
 func authenticate() {
 	user, _, db := userDBFromArgs(false)
 
 	password := getPassword()
-	ok := db.Authenticate(user, password)
-	if ok {
+	userMeta := db.Authenticate(user, password)
+	if userMeta != nil {
 		fmt.Println("Authentication succeeded")
 	} else {
 		Fatalf("Authentication failed")

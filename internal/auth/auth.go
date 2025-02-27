@@ -12,11 +12,12 @@ import (
 
 	"blitiri.com.ar/go/chasquid/internal/normalize"
 	"blitiri.com.ar/go/chasquid/internal/trace"
+	"blitiri.com.ar/go/chasquid/internal/userdb"
 )
 
 // Backend is the common interface for all authentication backends.
 type Backend interface {
-	Authenticate(user, password string) (bool, error)
+	Authenticate(user, password string) (*userdb.UserMeta, error)
 	Exists(user string) (bool, error)
 	Reload() error
 }
@@ -27,7 +28,7 @@ type Backend interface {
 // They can be converted to normal Backend using WrapNoErrorBackend (defined
 // below).
 type NoErrorBackend interface {
-	Authenticate(user, password string) bool
+	Authenticate(user, password string) *userdb.UserMeta
 	Exists(user string) bool
 	Reload() error
 }
@@ -65,7 +66,7 @@ func (a *Authenticator) Register(domain string, be Backend) {
 }
 
 // Authenticate the user@domain with the given password.
-func (a *Authenticator) Authenticate(tr *trace.Trace, user, domain, password string) (bool, error) {
+func (a *Authenticator) Authenticate(tr *trace.Trace, user, domain, password string) (*userdb.UserMeta, error) {
 	tr = tr.NewChild("Auth.Authenticate", user+"@"+domain)
 	defer tr.Finish()
 
@@ -82,10 +83,10 @@ func (a *Authenticator) Authenticate(tr *trace.Trace, user, domain, password str
 	}(time.Now())
 
 	if be, ok := a.backends[domain]; ok {
-		ok, err := be.Authenticate(user, password)
+		userMeta, err := be.Authenticate(user, password)
 		tr.Debugf("Backend: %v %v", ok, err)
-		if ok || err != nil {
-			return ok, err
+		if userMeta == nil || err != nil {
+			return userMeta, err
 		}
 	}
 
@@ -94,13 +95,13 @@ func (a *Authenticator) Authenticate(tr *trace.Trace, user, domain, password str
 		if domain != "" {
 			id = user + "@" + domain
 		}
-		ok, err := a.Fallback.Authenticate(id, password)
-		tr.Debugf("Fallback: %v %v", ok, err)
-		return ok, err
+		userMeta, err := a.Fallback.Authenticate(id, password)
+		tr.Debugf("Fallback: %v %v", userMeta, err)
+		return userMeta, err
 	}
 
 	tr.Debugf("Rejected by default")
-	return false, nil
+	return nil, nil
 }
 
 // Exists checks that user@domain exists.
@@ -247,7 +248,7 @@ type wrapNoErrorBackend struct {
 	be NoErrorBackend
 }
 
-func (w *wrapNoErrorBackend) Authenticate(user, password string) (bool, error) {
+func (w *wrapNoErrorBackend) Authenticate(user, password string) (*userdb.UserMeta, error) {
 	return w.be.Authenticate(user, password), nil
 }
 

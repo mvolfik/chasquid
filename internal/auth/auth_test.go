@@ -76,7 +76,7 @@ func TestAuthenticate(t *testing.T) {
 
 	// Wrong password, but valid user@domain.
 	ts := time.Now()
-	if ok, _ := a.Authenticate(tr, "user", "domain", "invalid"); ok {
+	if userMeta, _ := a.Authenticate(tr, "user", "domain", "invalid"); userMeta != nil {
 		t.Errorf("invalid password, but authentication succeeded")
 	}
 	if time.Since(ts) < a.AuthDuration {
@@ -104,7 +104,8 @@ func check(t *testing.T, a *Authenticator, user, domain, passwd string, expect b
 	tr := trace.New("test", "check")
 	defer tr.Finish()
 
-	ok, err := a.Authenticate(tr, user, domain, passwd)
+	userMeta, err := a.Authenticate(tr, user, domain, passwd)
+	ok := userMeta != nil
 	if time.Since(ts) < a.AuthDuration {
 		t.Errorf("auth on %v was too fast", c)
 	}
@@ -145,15 +146,18 @@ func (d *TestBE) add(user, password string) {
 	d.users[user] = password
 }
 
-func (d *TestBE) Authenticate(user, password string) (bool, error) {
+func (d *TestBE) Authenticate(user, password string) (*userdb.UserMeta, error) {
 	if d.nextError != nil {
-		return false, d.nextError
+		return nil, d.nextError
 	}
 
 	if validP, ok := d.users[user]; ok {
-		return validP == password, nil
+		if validP == password {
+			return &userdb.UserMeta{}, nil
+		}
+		return nil, nil
 	}
-	return false, nil
+	return nil, nil
 }
 
 func (d *TestBE) Exists(user string) (bool, error) {
@@ -225,23 +229,23 @@ func TestErrors(t *testing.T) {
 	tr := trace.New("test", "TestErrors")
 	defer tr.Finish()
 
-	ok, err := a.Authenticate(tr, "user", "domain", "passwd")
-	if err != nil || !ok {
+	userMeta, err := a.Authenticate(tr, "user", "domain", "passwd")
+	if err != nil || userMeta == nil {
 		t.Fatalf("failed auth")
 	}
 
 	expectedErr := fmt.Errorf("test error")
 	be.nextError = expectedErr
 
-	ok, err = a.Authenticate(tr, "user", "domain", "passwd")
-	if ok {
+	userMeta, err = a.Authenticate(tr, "user", "domain", "passwd")
+	if userMeta != nil {
 		t.Errorf("authentication succeeded, expected error")
 	}
 	if err != expectedErr {
 		t.Errorf("expected error, got %v", err)
 	}
 
-	ok, err = a.Exists(tr, "user", "domain")
+	ok, err := a.Exists(tr, "user", "domain")
 	if ok {
 		t.Errorf("exists succeeded, expected error")
 	}
