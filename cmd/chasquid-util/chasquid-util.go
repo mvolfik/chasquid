@@ -201,15 +201,22 @@ func setUserSendRestriction() {
 	user, _, db := userDBFromArgs(false)
 
 	restriction := userdb.SendRestriction_Unspecified
-	switch args["$3"] {
-	case "--any":
+	set := 0
+	if _, arg := args["--any"]; arg {
 		restriction = userdb.SendRestriction_Unspecified
-	case "--domain":
+		set += 1
+	}
+	if _, arg := args["--domain"]; arg {
 		restriction = userdb.SendRestriction_Domain
-	case "--self":
+		set += 1
+	}
+	if _, arg := args["--self"]; arg {
 		restriction = userdb.SendRestriction_Self
-	default:
-		Fatalf("Invalid restriction")
+		set += 1
+	}
+
+	if set != 1 {
+		Fatalf("Exactly one of --any, --domain, or --self must be specified")
 	}
 
 	err := db.RestrictUser(user, restriction)
